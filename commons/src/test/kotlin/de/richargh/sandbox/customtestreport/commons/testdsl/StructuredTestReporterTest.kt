@@ -202,5 +202,60 @@ class StructuredTestReporterTest {
 
     }
 
-}
+    @Nested
+    inner class ReportStep {
 
+        @Nested
+        @SmallScopeTest(SmallScopeTestInitializerExample::class)
+        inner class DslStepIsPresent {
+
+            @Test
+            fun `dsl logs a step`(a: TestStateExample) {
+                a.name()
+                /** asserts are in after **/
+            }
+
+            @AfterEach
+            fun after() {
+                assertThat(report).isNotNull
+                assertThat(report.steps).containsExactly("a name")
+            }
+
+            lateinit var report: StructuredTestReport
+
+            @BeforeEach
+            fun before(observer: StructuredTestObserver) {
+                observer.registerAfterEachTest {
+                    report = it
+                }
+            }
+        }
+
+        @Nested
+        @SmallScopeTest(SmallScopeTestInitializerExample::class)
+        inner class DslStepIsEmpty {
+
+            @Test
+            fun `not calling dsl logs no step`() {
+                /** empty because asserts are in after **/
+            }
+
+            @AfterEach
+            fun after() {
+                assertThat(report).isNotNull
+                assertThat(report.steps).isEmpty()
+            }
+
+            lateinit var report: StructuredTestReport
+
+            @BeforeEach
+            fun before(observer: StructuredTestObserver) {
+                observer.registerAfterEachTest {
+                    report = it
+                }
+            }
+        }
+
+    }
+
+}

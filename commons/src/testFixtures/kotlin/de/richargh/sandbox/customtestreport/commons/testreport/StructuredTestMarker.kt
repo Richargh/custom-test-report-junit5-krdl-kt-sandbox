@@ -1,4 +1,5 @@
 package de.richargh.sandbox.customtestreport.commons.testreport
 
-interface StructuredTestReporter {
+interface StructuredTestMarker {
+    fun step(name: String)
 }

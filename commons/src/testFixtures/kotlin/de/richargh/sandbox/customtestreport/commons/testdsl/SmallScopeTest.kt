@@ -37,8 +37,9 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
     override fun beforeEach(context: ExtensionContext) {
         val smallScopeInitializer = smallScopeInitializer(context)?.createInstance()
             ?: throw DidNotProvideSmallScopeInitializer()
-        storeFor(context).initTestDsl(smallScopeInitializer)
+        storeFor(context).initTestMarker()
         storeFor(context).initTestObserver()
+        storeFor(context).initTestDsl(smallScopeInitializer, storeFor(context).testMarker())
     }
 
     override fun afterTestExecution(context: ExtensionContext) {
@@ -49,11 +50,14 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
         element.getDeclaredAnnotation(Feature::class.java)?.value?.let { valueForLabel[FEATURE_LABEL_NAME] = it }
         element.getDeclaredAnnotation(Story::class.java)?.value?.let { valueForLabel[STORY_LABEL_NAME] = it }
 
+        val steps = storeFor(context).testMarker().steps()
+
         storeFor(context).testObserver().onTestReport(
             StructuredTestReport(
                 id = context.uniqueId,
                 title = context.displayName,
-                valueForLabel = valueForLabel
+                valueForLabel = valueForLabel,
+                steps = steps
             )
         )
     }
@@ -84,8 +88,8 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
 
 }
 
-private fun Store.initTestDsl(scopeTestInitializer: SmallScopeTestInitializer) {
-    put(TEST_STATE_KEY, scopeTestInitializer.testState())
+private fun Store.initTestDsl(scopeTestInitializer: SmallScopeTestInitializer, testMarker: StructuredTestMarker) {
+    put(TEST_STATE_KEY, scopeTestInitializer.testState(testMarker))
 }
 
 private fun Store.testState() = get(TEST_STATE_KEY, TestState::class.java)
@@ -96,8 +100,15 @@ private fun Store.initTestObserver() {
 
 private fun Store.testObserver() = get(OBSERVER_KEY, InMemoryStructuredTestObserver::class.java)
 
+private fun Store.initTestMarker() {
+    put(TEST_MARKER_KEY, InMemoryStructuredTestMarker())
+}
+
+private fun Store.testMarker() = get(TEST_MARKER_KEY, InMemoryStructuredTestMarker::class.java)
+
 private const val OBSERVER_KEY = "Observer"
-private const val TEST_STATE_KEY = "TestDsl"
+private const val TEST_MARKER_KEY = "Test Marker"
+private const val TEST_STATE_KEY = "Test Dsl"
 
 class SmallScopeAnnotationMissing
     : RuntimeException("Either Test Method or Class must be annotated with ${SmallScopeTest::class.simpleName}")
