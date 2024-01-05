@@ -4,6 +4,7 @@
 
 * JUnit 5
 * JUnit 5 TestDsl Parameter Resolver
+* Custom Reports in AsciiDoc format
 
 == Preconditions
 
@@ -11,4 +12,4 @@
 
 == Usage
 
-TODO
+* Generate AsciiDoc Tests: `./gradlew :commons:test`
