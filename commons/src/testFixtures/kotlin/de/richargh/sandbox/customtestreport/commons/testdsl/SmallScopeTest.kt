@@ -4,6 +4,9 @@ import de.richargh.sandbox.customtestreport.commons.testreport.*
 import org.junit.jupiter.api.extension.*
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace
 import org.junit.jupiter.api.extension.ExtensionContext.Store
+import java.util.Properties
+import java.util.function.Consumer
+import kotlin.io.path.Path
 import kotlin.reflect.KClass
 import kotlin.reflect.full.allSuperclasses
 import kotlin.reflect.full.createInstance
@@ -16,15 +19,22 @@ annotation class SmallScopeTest(val value: KClass<out SmallScopeTestInitializer>
 
 class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTestExecutionCallback {
 
-    override fun supportsParameter(parameterContext: ParameterContext, extensionContext: ExtensionContext) =
-        isTestState(parameterContext)
+    override fun supportsParameter(parameterContext: ParameterContext, extensionContext: ExtensionContext): Boolean {
+        return isTestState(parameterContext)
                 || isTestObserver(parameterContext)
+                || isAsciiDocReportDirectory(parameterContext)
+    }
 
     override fun resolveParameter(parameterContext: ParameterContext, extensionContext: ExtensionContext): Any {
         return when {
-            isTestState(parameterContext) -> storeFor(extensionContext).testState()
-            isTestObserver(parameterContext) -> storeFor(extensionContext).testObserver()
-            else -> throw TriedToResolveUnsupportedParamter(parameterContext.parameter.type)
+            isTestState(parameterContext) ->
+                extensionContext.testState()
+            isTestObserver(parameterContext) ->
+                extensionContext.testEvents()
+            isAsciiDocReportDirectory(parameterContext) ->
+                extensionContext.asciiDocReporter()?.folder ?: throw NoAsciiDocReporterRegistered()
+            else ->
+                throw TriedToResolveUnsupportedParamter(parameterContext.parameter.type)
         }
     }
 
@@ -32,14 +42,17 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
         TestState::class.java in parameterContext.parameter.type.interfaces
 
     private fun isTestObserver(parameterContext: ParameterContext) =
-        parameterContext.parameter.type === StructuredTestObserver::class.java
+        parameterContext.parameter.type === StructuredTestEvents::class.java
+
+    private fun isAsciiDocReportDirectory(parameterContext: ParameterContext) =
+        parameterContext.parameter.isAnnotationPresent(AsciiDocReportDirectory::class.java)
 
     override fun beforeEach(context: ExtensionContext) {
         val smallScopeInitializer = smallScopeInitializer(context)?.createInstance()
             ?: throw DidNotProvideSmallScopeInitializer()
-        storeFor(context).initTestMarker()
-        storeFor(context).initTestObserver()
-        storeFor(context).initTestDsl(smallScopeInitializer, storeFor(context).testMarker())
+        context.initTestMarker()
+        context.initTestEvents(observer(context))
+        context.initTestDsl(smallScopeInitializer, context.testMarker())
     }
 
     override fun afterTestExecution(context: ExtensionContext) {
@@ -50,11 +63,12 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
         element.getDeclaredAnnotation(Feature::class.java)?.value?.let { valueForLabel[FEATURE_LABEL_NAME] = it }
         element.getDeclaredAnnotation(Story::class.java)?.value?.let { valueForLabel[STORY_LABEL_NAME] = it }
 
-        val steps = storeFor(context).testMarker().steps()
+        val steps = context.testMarker().steps()
 
-        storeFor(context).testObserver().onTestReport(
+        context.testEvents().onTestReport(
             StructuredTestReport(
                 id = context.uniqueId,
+                hierarchy = testHierarchy(context),
                 title = context.displayName,
                 valueForLabel = valueForLabel,
                 steps = steps
@@ -62,16 +76,16 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
         )
     }
 
-//    override fun afterEach(context: ExtensionContext) {
-//        println("After Parent: ${context.parent.get().displayName}")
-//        println("After Parent Annotations: ${context.parent.get().element.get().annotations.joinToString()}")
-//        println("After Method: ${context.testMethod.get().name}")
-//        println("After Displayname: ${context.displayName}")
-//        println("After Testinstance: ${context.testInstance.get()}")
-//        println("After Element Declared Annotations: ${context.element.get().declaredAnnotations.joinToString()}")
-//        println("After Element Annotations: ${context.element.get().annotations.joinToString()}")
-//        println("After Tags: ${context.tags}")
-//    }
+    private fun testHierarchy(context: ExtensionContext): List<String> {
+        var currentContext: ExtensionContext = context
+        val hierarchy = mutableListOf<String>()
+        while (currentContext.parent.isPresent){
+            hierarchy.add(0, currentContext.displayName)
+            currentContext = currentContext.parent.orElseThrow()
+        }
+
+        return hierarchy
+    }
 
     private fun smallScopeInitializer(extensionContext: ExtensionContext): KClass<out SmallScopeTestInitializer>? {
         val scopeAnnotation = firstAnnotation(extensionContext, SmallScopeTest::class.java)
@@ -82,31 +96,65 @@ class SmallScopeTestExtension : ParameterResolver, BeforeEachCallback, AfterTest
             null
     }
 
-    private fun storeFor(context: ExtensionContext): Store {
-        return context.getStore(Namespace.create(javaClass, context.requiredTestMethod))
+    private fun observer(context: ExtensionContext): Map<String, Consumer<StructuredTestReport>> {
+        val observer = mutableMapOf<String, Consumer<StructuredTestReport>>()
+        asciidocReporter(context)?.let { observer[it.first] = it.second }
+        return observer
+    }
+
+    private fun asciidocReporter(context: ExtensionContext): Pair<String, AsciiDocReporter>? {
+        if(firstAnnotation(context, ReportAsAsciiDoc::class.java) == null)
+            return null
+
+        val propertiesFile = javaClass.getResourceAsStream("/customtestreport.properties")?.use {
+            val properties = Properties()
+            properties.load(it)
+            properties
+        }
+
+        val rawReportFolder = propertiesFile?.getProperty("customtestreport.results.directory")
+            ?: "build/custom-results"
+        val reportFolder = Path(rawReportFolder)
+
+        return AsciiDocReporter.reporterName to AsciiDocReporter(reportFolder)
     }
 
 }
 
-private fun Store.initTestDsl(scopeTestInitializer: SmallScopeTestInitializer, testMarker: StructuredTestMarker) {
-    put(TEST_STATE_KEY, scopeTestInitializer.testState(testMarker))
+private fun ExtensionContext.initTestDsl(scopeTestInitializer: SmallScopeTestInitializer, testMarker: StructuredTestMarker) {
+    testStoreFor(this).put(TEST_STATE_KEY, scopeTestInitializer.testState(testMarker))
 }
 
-private fun Store.testState() = get(TEST_STATE_KEY, TestState::class.java)
+private fun ExtensionContext.testState() = testStoreFor(this).get(TEST_STATE_KEY, TestState::class.java)
 
-private fun Store.initTestObserver() {
-    put(OBSERVER_KEY, InMemoryStructuredTestObserver())
+private fun ExtensionContext.initTestEvents(observer: Map<String, Consumer<StructuredTestReport>>) {
+    val structuredTestEvents = InMemoryStructuredTestEvents()
+    observer.forEach(structuredTestEvents::registerAfterEachTest)
+    testStoreFor(this).put(TEST_EVENTS_KEY, structuredTestEvents)
 }
 
-private fun Store.testObserver() = get(OBSERVER_KEY, InMemoryStructuredTestObserver::class.java)
+private fun ExtensionContext.testEvents() = testStoreFor(this).get(TEST_EVENTS_KEY, InMemoryStructuredTestEvents::class.java)
 
-private fun Store.initTestMarker() {
-    put(TEST_MARKER_KEY, InMemoryStructuredTestMarker())
+private fun ExtensionContext.asciiDocReporter() = testEvents().byName(AsciiDocReporter.reporterName) as? AsciiDocReporter
+
+private fun ExtensionContext.initTestMarker() {
+    testStoreFor(this).put(TEST_MARKER_KEY, InMemoryStructuredTestMarker())
 }
 
-private fun Store.testMarker() = get(TEST_MARKER_KEY, InMemoryStructuredTestMarker::class.java)
+private fun ExtensionContext.testMarker() = testStoreFor(this).get(TEST_MARKER_KEY, InMemoryStructuredTestMarker::class.java)
 
-private const val OBSERVER_KEY = "Observer"
+private val NAMESPACE = Namespace.create("de", "richargh", "sandbox", "customtestreport")
+
+private fun globalStoreFor(context: ExtensionContext): Store {
+    return context.getStore(NAMESPACE)
+}
+
+private fun testStoreFor(context: ExtensionContext): Store {
+    return context.getStore(Namespace.create(SmallScopeTestExtension::class, context.requiredTestMethod))
+}
+
+private const val TEST_EVENTS_KEY = "Test Events"
+private const val TEST_REPORT_ASCIIDOC_FOLDER_KEY = "Test Report AsciiDoc Folder"
 private const val TEST_MARKER_KEY = "Test Marker"
 private const val TEST_STATE_KEY = "Test Dsl"
 
@@ -118,3 +166,6 @@ class DidNotProvideSmallScopeInitializer
 
 class TriedToResolveUnsupportedParamter(unsupportedParamter: Class<*>) :
     RuntimeException("JUnit did something weird and tried to resolve unknown parameter: ${unsupportedParamter.simpleName}")
+
+class NoAsciiDocReporterRegistered() :
+    RuntimeException("No AsciiDoc Reporter is registed so you cannot get the reporter path: Register one via annotation: ${ReportAsAsciiDoc::class.simpleName}")

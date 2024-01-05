@@ -3,8 +3,6 @@ package de.richargh.sandbox.customtestreport.commons.testdsl
 import de.richargh.sandbox.customtestreport.commons.testreport.*
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
 
 
 class StructuredTestReporterTest {
@@ -27,8 +25,8 @@ class StructuredTestReporterTest {
         lateinit var report: StructuredTestReport
 
         @BeforeEach
-        fun before(observer: StructuredTestObserver) {
-            observer.registerAfterEachTest {
+        fun before(observer: StructuredTestEvents) {
+            observer.registerAfterEachTest("Tmp") {
                 report = it
             }
         }
@@ -56,8 +54,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -81,8 +79,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -112,8 +110,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -137,8 +135,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -168,8 +166,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -193,8 +191,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -224,8 +222,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }
@@ -249,8 +247,8 @@ class StructuredTestReporterTest {
             lateinit var report: StructuredTestReport
 
             @BeforeEach
-            fun before(observer: StructuredTestObserver) {
-                observer.registerAfterEachTest {
+            fun before(observer: StructuredTestEvents) {
+                observer.registerAfterEachTest("Tmp") {
                     report = it
                 }
             }

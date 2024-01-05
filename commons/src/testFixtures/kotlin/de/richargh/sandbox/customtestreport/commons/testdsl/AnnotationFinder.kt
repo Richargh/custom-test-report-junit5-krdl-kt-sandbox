@@ -6,6 +6,8 @@ import kotlin.jvm.optionals.getOrNull
 fun <T: Annotation> firstAnnotation(extensionContext: ExtensionContext, annotationClass: Class<T>): T? {
     var currentContext: ExtensionContext = extensionContext
     while (true) {
+        if(currentContext.element.isEmpty) break
+
         val annotation = currentContext.element.get().getAnnotation(annotationClass)
         if(annotation != null)
             return annotation
