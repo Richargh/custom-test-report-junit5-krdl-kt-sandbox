@@ -20,7 +20,16 @@ class AsciiDocReporter(
         if(!reportFile.parentFile.exists())
             reportFile.parentFile.mkdirs()
         reportFile.createNewFile()
-        reportFile.writeText("= ${testReport.title}")
+        reportFile.writeText("""
+            
+            = ${testReport.title}
+            
+            Epic: ${testReport.valueForLabel[EPIC_LABEL_NAME]}
+            Feature: ${testReport.valueForLabel[FEATURE_LABEL_NAME]}
+            Story: ${testReport.valueForLabel[STORY_LABEL_NAME]}
+            
+            
+            """.trimIndent())
     }
 
     private fun resolve(folder: Path, testPath: List<String>): File {
